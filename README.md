@@ -63,7 +63,7 @@ Tú tienes el control total de tu información:
 - **Modo Compartir:** Genera enlaces de "solo lectura" de tus paneles para compartirlos con amigos, entrenadores o quien tú quieras.
 
 
-## "Instalación" (Añadir a Pantalla de Inicio)
+## ⚒️ "Instalación" (Añadir a Pantalla de Inicio)
 Para una experiencia más cómoda y un acceso rápido, puedes añadir `FútbolStats v2` a la pantalla de inicio de tu dispositivo. ¡Funcionará como una app nativa!
 
 *   **En iOS (iPhone/iPad):**
@@ -79,7 +79,7 @@ Para una experiencia más cómoda y un acceso rápido, puedes añadir `FútbolSt
     4.  Confirma la acción y la app se añadirá a tu dispositivo.
 
 
-## 3. Gestión y Privacidad de tus Datos
+## 💾 Gestión y Privacidad de tus Datos
 Tú tienes el control total de tu información. Todos los datos que registras se guardan **de forma local en tu dispositivo**, garantizando tu completa privacidad. Nadie más puede acceder a ellos.
 
 Desde la sección de **`Configuración`** puedes gestionar tus datos de la siguiente manera:
