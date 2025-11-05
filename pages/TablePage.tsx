@@ -1,0 +1,377 @@
+import React, { useState, useMemo, useEffect } from 'react';
+import { useTheme } from '../contexts/ThemeContext';
+import { useData } from '../contexts/DataContext';
+import { TableIcon } from '../components/icons/TableIcon';
+import RadarChart from '../components/charts/RadarChart';
+import Card from '../components/common/Card';
+import ShareViewModal from '../components/modals/ShareViewModal';
+import { ShareIcon } from '../components/icons/ShareIcon';
+import { parseLocalDate } from '../utils/analytics';
+
+interface YearlyStats {
+  year: number;
+  matchesPlayed: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  winRate: number;
+  efectividad: number;
+  goals: number;
+  assists: number;
+  gpm: number;
+  apm: number;
+  contributions: number;
+  cpm: number;
+}
+
+const radarMetrics: { label: string; key: keyof YearlyStats }[] = [
+    { label: 'PJ', key: 'matchesPlayed' },
+    { label: 'V', key: 'wins' },
+    { label: 'E', key: 'draws' },
+    { label: 'D', key: 'losses' },
+    { label: '%V', key: 'winRate' },
+    { label: 'Efect.', key: 'efectividad' },
+    { label: 'G', key: 'goals' },
+    { label: 'A', key: 'assists' },
+    { label: 'G/P', key: 'gpm' },
+    { label: 'A/P', key: 'apm' },
+];
+
+const TablePage: React.FC = () => {
+  const { theme } = useTheme();
+  const { matches, isShareMode } = useData();
+  const [sortConfig, setSortConfig] = useState<{ key: keyof YearlyStats; direction: 'asc' | 'desc' }>({ key: 'year', direction: 'desc' });
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 992);
+  const [visibleYears, setVisibleYears] = useState<Set<number>>(new Set());
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isShareHovered, setIsShareHovered] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 992);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  const yearlyData = useMemo(() => {
+    const statsByYear: Record<number, Omit<YearlyStats, 'year' | 'winRate' | 'gpm' | 'apm' | 'contributions' | 'cpm' | 'efectividad'>> = {};
+
+    matches.forEach(match => {
+      const year = parseLocalDate(match.date).getFullYear();
+      if (!statsByYear[year]) {
+        statsByYear[year] = {
+          matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0,
+          goals: 0, assists: 0,
+        };
+      }
+
+      const yearStats = statsByYear[year];
+      yearStats.matchesPlayed++;
+      if (match.result === 'VICTORIA') {
+        yearStats.wins++;
+        yearStats.points += 3;
+      } else if (match.result === 'EMPATE') {
+        yearStats.draws++;
+        yearStats.points += 1;
+      } else {
+        yearStats.losses++;
+      }
+      yearStats.goals += match.myGoals;
+      yearStats.assists += match.myAssists;
+    });
+
+    return Object.entries(statsByYear).map(([year, stats]) => {
+      const { matchesPlayed, wins, goals, assists, points } = stats;
+      const efectividad = matchesPlayed > 0 ? (points / (matchesPlayed * 3)) * 100 : 0;
+      return {
+        ...stats,
+        year: Number(year),
+        winRate: matchesPlayed > 0 ? (wins / matchesPlayed) * 100 : 0,
+        gpm: matchesPlayed > 0 ? goals / matchesPlayed : 0,
+        apm: matchesPlayed > 0 ? assists / matchesPlayed : 0,
+        contributions: goals + assists,
+        cpm: matchesPlayed > 0 ? (goals + assists) / matchesPlayed : 0,
+        efectividad,
+      };
+    });
+  }, [matches]);
+  
+  const maxValues = useMemo(() => {
+    if (yearlyData.length === 0) return {};
+    
+    const maxes: Partial<Record<keyof YearlyStats, number>> = {};
+    const keysToCompare: (keyof YearlyStats)[] = [
+        'matchesPlayed', 'wins', 'draws', 'losses', 'points', 'winRate', 
+        'efectividad', 'goals', 'assists', 'gpm', 'apm', 'contributions', 'cpm'
+    ];
+
+    keysToCompare.forEach(key => {
+        maxes[key] = Math.max(...yearlyData.map(d => d[key]));
+    });
+
+    return maxes;
+  }, [yearlyData]);
+  
+  useEffect(() => {
+    if (yearlyData.length > 0) {
+      setVisibleYears(new Set(yearlyData.map(d => d.year)));
+    }
+  }, [yearlyData]);
+
+  const sortedYearlyData = useMemo(() => {
+    return [...yearlyData].sort((a, b) => {
+      const aVal = a[sortConfig.key];
+      const bVal = b[sortConfig.key];
+      // FIX: Correctly handle numeric comparisons, as all sortable keys are numbers. This resolves the error where `localeCompare` was called on a `never` type.
+      if (aVal < bVal) return sortConfig.direction === 'asc' ? -1 : 1;
+      if (aVal > bVal) return sortConfig.direction === 'asc' ? 1 : -1;
+      return 0;
+    });
+  }, [yearlyData, sortConfig]);
+
+  const requestSort = (key: keyof YearlyStats) => {
+    let direction: 'asc' | 'desc' = 'desc';
+    if (sortConfig.key === key && sortConfig.direction === 'desc') {
+      direction = 'asc';
+    }
+    setSortConfig({ key, direction });
+  };
+
+  const getSortIndicator = (key: keyof YearlyStats) => {
+    if (sortConfig.key !== key) return null;
+    return sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
+  };
+  
+  const historicalMaxValuesForRadar = useMemo(() => {
+    if (yearlyData.length === 0) {
+        return radarMetrics.map(() => 1);
+    }
+    return radarMetrics.map(metric => 
+        Math.max(...yearlyData.map(y => y[metric.key] as number), 1)
+    );
+  }, [yearlyData]);
+  
+  const radarChartData = useMemo(() => {
+    if (yearlyData.length === 0) return [];
+    
+    const colors = [
+        theme.colors.accent1, theme.colors.accent2, theme.colors.accent3,
+        theme.colors.win, theme.colors.draw, '#FF7043', '#7E57C2', '#26A69A'
+    ];
+
+    const sortedVisibleData = [...yearlyData].sort((a,b) => b.year - a.year);
+    const currentYear = new Date().getFullYear();
+
+    return sortedVisibleData
+      .filter(yearStat => visibleYears.has(yearStat.year))
+      .map((yearStat, index) => ({
+        name: yearStat.year.toString(),
+        color: colors[index % colors.length],
+        isDashed: yearStat.year === currentYear,
+        data: radarMetrics.map(metric => ({
+            label: metric.label,
+            value: yearStat[metric.key] as number
+        })),
+      }));
+  }, [yearlyData, visibleYears, theme.colors]);
+  
+  const toggleYearVisibility = (year: number) => {
+    setVisibleYears(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(year)) newSet.delete(year);
+      else newSet.add(year);
+      return newSet;
+    });
+  };
+
+  const headers: { key: keyof YearlyStats; label: string; isNumeric: boolean }[] = [
+    { key: 'year', label: 'Año', isNumeric: true },
+    { key: 'points', label: 'Pts', isNumeric: true },
+    { key: 'matchesPlayed', label: 'PJ', isNumeric: true },
+    { key: 'wins', label: 'V', isNumeric: true },
+    { key: 'draws', label: 'E', isNumeric: true },
+    { key: 'losses', label: 'D', isNumeric: true },
+    { key: 'winRate', label: '% V', isNumeric: true },
+    { key: 'efectividad', label: 'Efect.', isNumeric: true },
+    { key: 'goals', label: 'G', isNumeric: true },
+    { key: 'assists', label: 'A', isNumeric: true },
+    { key: 'gpm', label: 'G/P', isNumeric: true },
+    { key: 'apm', label: 'A/P', isNumeric: true },
+    { key: 'contributions', label: 'G+A', isNumeric: true },
+    { key: 'cpm', label: 'G+A/P', isNumeric: true },
+  ];
+  
+  const styles: { [key: string]: React.CSSProperties } = {
+    container: { maxWidth: '1200px', margin: '0 auto', padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, display: 'flex', flexDirection: 'column', gap: theme.spacing.large },
+    header: {
+      display: 'flex',
+      justifyContent: isDesktop ? 'space-between' : 'center',
+      alignItems: isDesktop ? 'center' : 'flex-start',
+      gap: '1rem',
+      flexDirection: isDesktop ? 'row' : 'column',
+    },
+    pageTitle: { fontSize: theme.typography.fontSize.extraLarge, fontWeight: 700, color: theme.colors.primaryText, margin: 0, borderLeft: `4px solid ${theme.colors.accent1}`, paddingLeft: theme.spacing.medium },
+    contentWrapper: {
+        display: isDesktop ? 'grid' : 'flex',
+        flexDirection: 'column',
+        gridTemplateColumns: 'minmax(400px, 35%) 1fr',
+        gap: theme.spacing.large,
+        alignItems: 'start',
+    },
+    chartColumn: {
+        position: isDesktop ? 'sticky' : 'static',
+        top: `calc(65px + ${theme.spacing.extraLarge})`, // 65px header + page padding
+    },
+    tableWrapper: { width: '100%', overflowX: 'auto', backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large, border: `1px solid ${theme.colors.border}`, boxShadow: theme.shadows.medium, minWidth: 0 },
+    table: { width: '100%', borderCollapse: 'collapse' },
+    th: { padding: `${theme.spacing.small} ${theme.spacing.medium}`, textAlign: 'left', fontSize: theme.typography.fontSize.small, color: theme.colors.secondaryText, fontWeight: 600, borderBottom: `2px solid ${theme.colors.borderStrong}`, cursor: 'pointer', whiteSpace: 'nowrap' },
+    tr: { transition: 'background-color 0.2s' },
+    td: { padding: `${theme.spacing.medium}`, fontSize: theme.typography.fontSize.small, color: theme.colors.primaryText, borderBottom: `1px solid ${theme.colors.border}`, whiteSpace: 'nowrap' },
+    stickyColumn: {
+      position: 'sticky',
+      left: 0,
+      backgroundColor: theme.colors.surface,
+      borderRight: `1px solid ${theme.colors.borderStrong}`,
+    },
+    numeric: { textAlign: 'right' },
+    noDataContainer: { textAlign: 'center', padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, color: theme.colors.secondaryText, backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large, border: `1px solid ${theme.colors.border}` },
+    chartAndLegendContainer: { display: 'flex', flexDirection: 'column', gap: theme.spacing.large, alignItems: 'center', },
+    legendContainer: { display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: theme.spacing.small, },
+    legendButton: { background: 'none', border: `1px solid ${theme.colors.border}`, borderRadius: theme.borderRadius.medium, padding: `${theme.spacing.extraSmall} ${theme.spacing.small}`, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: theme.spacing.small, fontSize: theme.typography.fontSize.small, transition: 'all 0.2s ease', },
+    legendColorBox: { width: '12px', height: '12px', borderRadius: '3px' },
+    shareButton: {
+        background: isShareHovered ? theme.colors.accent2 : 'transparent',
+        color: isShareHovered ? theme.colors.textOnAccent : theme.colors.accent2,
+        border: `1px solid ${theme.colors.accent2}`,
+        padding: `${theme.spacing.small} ${theme.spacing.medium}`,
+        borderRadius: theme.borderRadius.medium,
+        cursor: 'pointer',
+        fontWeight: 600,
+        display: 'flex',
+        alignItems: 'center',
+        gap: theme.spacing.small,
+        transition: 'background-color 0.2s, color 0.2s',
+        alignSelf: 'center',
+    },
+  };
+
+  if (matches.length === 0) {
+    return (
+        <main style={styles.container}>
+            <h2 style={styles.pageTitle}>Mi rendimiento anual</h2>
+            <div style={styles.noDataContainer}>
+                <TableIcon size={40} color={theme.colors.secondaryText} />
+                <p style={{ marginTop: theme.spacing.medium }}>No hay partidos registrados para mostrar en la tabla.</p>
+            </div>
+        </main>
+    )
+  }
+
+  return (
+    <>
+    <style>{`
+        .table-row:hover { background-color: ${theme.colors.background}; }
+        .table-row:hover .sticky-column { background-color: ${theme.colors.background}; }
+        .subtle-scrollbar::-webkit-scrollbar { height: 8px; }
+        .subtle-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .subtle-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme.colors.border}; border-radius: 10px; }
+        .subtle-scrollbar { scrollbar-width: thin; scrollbar-color: ${theme.colors.border} transparent; }
+    `}</style>
+    <main style={styles.container}>
+      <div style={styles.header}>
+        <h2 style={styles.pageTitle}>Mi rendimiento anual</h2>
+        {!isShareMode && (
+            <button 
+                style={styles.shareButton} 
+                onClick={() => setIsShareModalOpen(true)}
+                onMouseEnter={() => setIsShareHovered(true)}
+                onMouseLeave={() => setIsShareHovered(false)}
+            >
+                <ShareIcon />
+                Compartir Vista
+            </button>
+        )}
+      </div>
+      
+      <div style={styles.contentWrapper}>
+        <div style={styles.chartColumn}>
+            {yearlyData.length > 0 && (
+              <Card>
+                <div style={styles.chartAndLegendContainer}>
+                    <RadarChart 
+                      playersData={radarChartData} 
+                      size={isDesktop ? 350 : 300} 
+                      showLegend={false}
+                      maxValues={historicalMaxValuesForRadar}
+                    />
+                    <div style={styles.legendContainer}>
+                        {yearlyData.sort((a,b) => b.year - a.year).map((yearStat) => {
+                            const isVisible = visibleYears.has(yearStat.year);
+                            const color = radarChartData.find(d => d.name === yearStat.year.toString())?.color || theme.colors.secondaryText;
+                            return (
+                                <button key={yearStat.year} onClick={() => toggleYearVisibility(yearStat.year)} style={{...styles.legendButton, color: isVisible ? theme.colors.primaryText : theme.colors.secondaryText, opacity: isVisible ? 1 : 0.6 }}>
+                                    <span style={{...styles.legendColorBox, backgroundColor: color }}></span>
+                                    {yearStat.year}
+                                </button>
+                            );
+                        })}
+                    </div>
+                </div>
+              </Card>
+            )}
+        </div>
+        <div style={styles.tableWrapper} className="subtle-scrollbar">
+            <table style={styles.table}>
+            <thead>
+                <tr>
+                {headers.map((header, index) => (
+                    <th key={header.key} style={{...styles.th, ...(header.isNumeric && styles.numeric), ...(index === 0 && styles.stickyColumn) }} className={index === 0 ? 'sticky-column' : ''} onClick={() => requestSort(header.key)}>
+                    {header.label}
+                    {getSortIndicator(header.key)}
+                    </th>
+                ))}
+                </tr>
+            </thead>
+            <tbody>
+                {sortedYearlyData.map(stats => {
+                    const isMax = (key: keyof YearlyStats) => maxValues[key] !== undefined && stats[key] === maxValues[key] && (maxValues[key] as number) > 0;
+                    
+                    const maxStyle: React.CSSProperties = {
+                        fontWeight: 700,
+                        color: theme.colors.win,
+                    };
+
+                    return (
+                    <tr key={stats.year} style={styles.tr} className="table-row">
+                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...styles.stickyColumn}} className="sticky-column">{stats.year}</td>
+                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('points') && { color: theme.colors.win })}}>{stats.points}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('matchesPlayed') && maxStyle)}}>{stats.matchesPlayed}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('wins') && maxStyle)}}>{stats.wins}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('draws') && maxStyle)}}>{stats.draws}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('losses') && maxStyle)}}>{stats.losses}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('winRate') && maxStyle)}}>{stats.winRate.toFixed(1)}%</td>
+                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('efectividad') && { color: theme.colors.win })}}>{stats.efectividad.toFixed(1)}%</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('goals') && maxStyle)}}>{stats.goals}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('assists') && maxStyle)}}>{stats.assists}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('gpm') && maxStyle)}}>{stats.gpm.toFixed(2)}</td>
+                        <td style={{...styles.td, ...styles.numeric, ...(isMax('apm') && maxStyle)}}>{stats.apm.toFixed(2)}</td>
+                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('contributions') && { color: theme.colors.win })}}>{stats.contributions}</td>
+                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('cpm') && { color: theme.colors.win })}}>{stats.cpm.toFixed(2)}</td>
+                    </tr>
+                    );
+                })}
+            </tbody>
+            </table>
+        </div>
+      </div>
+    </main>
+    <ShareViewModal 
+        isOpen={isShareModalOpen}
+        onClose={() => setIsShareModalOpen(false)}
+        page='table'
+    />
+    </>
+  );
+};
+
+export default TablePage;
