@@ -9,33 +9,6 @@ Puedes acceder y utilizar la aplicación directamente desde el navegador de tu m
 
 **`[AQUÍ VA LA URL DE TU APLICACIÓN]`**
 
-### 2. "Instalación" (Añadir a Pantalla de Inicio)
-Para una experiencia más cómoda y un acceso rápido, puedes añadir `FútbolStats v2` a la pantalla de inicio de tu dispositivo. ¡Funcionará como una app nativa!
-
-*   **En iOS (iPhone/iPad):**
-    1.  Abre la URL de la aplicación en **Safari**.
-    2.  Toca el botón de **Compartir** (el ícono de un cuadrado con una flecha hacia arriba).
-    3.  Desliza hacia abajo y selecciona la opción **"Añadir a pantalla de inicio"**.
-    4.  ¡Listo! El ícono de la app aparecerá junto a tus otras aplicaciones.
-
-*   **En Android:**
-    1.  Abre la URL de la aplicación en **Chrome**.
-    2.  Toca el **menú de los tres puntos** (⋮) en la esquina superior derecha.
-    3.  Selecciona **"Instalar aplicación"** o **"Añadir a la pantalla de inicio"**.
-    4.  Confirma la acción y la app se añadirá a tu dispositivo.
-
-### 3. Gestión y Privacidad de tus Datos
-Tú tienes el control total de tu información. Todos los datos que registras se guardan **de forma local en tu dispositivo**, garantizando tu completa privacidad. Nadie más puede acceder a ellos.
-
-Desde la sección de **`Configuración`** puedes gestionar tus datos de la siguiente manera:
-
-*   **Exportar (Crear Copias de Seguridad):**
-    *   **Formato JSON:** Es la opción recomendada para crear una copia de seguridad completa de todos tus datos (partidos, metas, perfil, etc.). Este archivo es el que necesitarás si quieres transferir tu historial a otro dispositivo.
-    *   **Formato CSV:** Ideal si quieres llevar tus estadísticas a una hoja de cálculo (como Excel o Google Sheets) para realizar tus propios análisis y gráficos.
-
-*   **Importar (Restaurar Datos):**
-    *   Puedes usar un archivo `.json` que hayas exportado previamente para restaurar toda tu información.
-    *   **¡Atención!** La importación de un archivo reemplazará todos los datos que tengas guardados actualmente en la aplicación.
 
 ## 🌟 Funcionalidades Principales
 
@@ -88,3 +61,33 @@ Tú tienes el control total de tu información:
 - **Perfil de Jugador:** Añade tu foto y detalles personales.
 - **Importa y Exporta:** No pierdas nunca tus datos. Exporta tu historial en formato JSON (para copias de seguridad) o CSV (para analizarlo en una hoja de cálculo).
 - **Modo Compartir:** Genera enlaces de "solo lectura" de tus paneles para compartirlos con amigos, entrenadores o quien tú quieras.
+
+
+## "Instalación" (Añadir a Pantalla de Inicio)
+Para una experiencia más cómoda y un acceso rápido, puedes añadir `FútbolStats v2` a la pantalla de inicio de tu dispositivo. ¡Funcionará como una app nativa!
+
+*   **En iOS (iPhone/iPad):**
+    1.  Abre la URL de la aplicación en **Safari**.
+    2.  Toca el botón de **Compartir** (el ícono de un cuadrado con una flecha hacia arriba).
+    3.  Desliza hacia abajo y selecciona la opción **"Añadir a pantalla de inicio"**.
+    4.  ¡Listo! El ícono de la app aparecerá junto a tus otras aplicaciones.
+
+*   **En Android:**
+    1.  Abre la URL de la aplicación en **Chrome**.
+    2.  Toca el **menú de los tres puntos** (⋮) en la esquina superior derecha.
+    3.  Selecciona **"Instalar aplicación"** o **"Añadir a la pantalla de inicio"**.
+    4.  Confirma la acción y la app se añadirá a tu dispositivo.
+
+
+## 3. Gestión y Privacidad de tus Datos
+Tú tienes el control total de tu información. Todos los datos que registras se guardan **de forma local en tu dispositivo**, garantizando tu completa privacidad. Nadie más puede acceder a ellos.
+
+Desde la sección de **`Configuración`** puedes gestionar tus datos de la siguiente manera:
+
+*   **Exportar (Crear Copias de Seguridad):**
+    *   **Formato JSON:** Es la opción recomendada para crear una copia de seguridad completa de todos tus datos (partidos, metas, perfil, etc.). Este archivo es el que necesitarás si quieres transferir tu historial a otro dispositivo.
+    *   **Formato CSV:** Ideal si quieres llevar tus estadísticas a una hoja de cálculo (como Excel o Google Sheets) para realizar tus propios análisis y gráficos.
+
+*   **Importar (Restaurar Datos):**
+    *   Puedes usar un archivo `.json` que hayas exportado previamente para restaurar toda tu información.
+    *   **¡Atención!** La importación de un archivo reemplazará todos los datos que tengas guardados actualmente en la aplicación.
