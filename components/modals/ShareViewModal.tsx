@@ -45,8 +45,11 @@ const ShareViewModal: React.FC<ShareViewModalProps> = ({ isOpen, onClose, page, 
       if (!appUrl) {
         appUrl = window.location.origin + window.location.pathname;
       }
+      
+      const urlObject = new URL(appUrl);
+      const cleanAppUrl = `${urlObject.origin}${urlObject.pathname}`;
 
-      const url = new URL(appUrl);
+      const url = new URL(cleanAppUrl);
       url.searchParams.set('share', 'true');
       url.searchParams.set('view', page);
       

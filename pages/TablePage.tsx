@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useData } from '../contexts/DataContext';
 import { TableIcon } from '../components/icons/TableIcon';
@@ -10,6 +10,23 @@ import { parseLocalDate } from '../utils/analytics';
 
 interface YearlyStats {
   year: number;
+  matchesPlayed: number;
+  wins: number;
+  draws: number;
+  losses: number;
+  points: number;
+  winRate: number;
+  efectividad: number;
+  goals: number;
+  assists: number;
+  gpm: number;
+  apm: number;
+  contributions: number;
+  cpm: number;
+}
+
+interface TournamentStats {
+  name: string;
   matchesPlayed: number;
   wins: number;
   draws: number;
@@ -42,10 +59,17 @@ const TablePage: React.FC = () => {
   const { theme } = useTheme();
   const { matches, isShareMode } = useData();
   const [sortConfig, setSortConfig] = useState<{ key: keyof YearlyStats; direction: 'asc' | 'desc' }>({ key: 'year', direction: 'desc' });
+  const [tournamentSortConfig, setTournamentSortConfig] = useState<{ key: keyof TournamentStats; direction: 'asc' | 'desc' }>({ key: 'points', direction: 'desc' });
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 992);
   const [visibleYears, setVisibleYears] = useState<Set<number>>(new Set());
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isShareHovered, setIsShareHovered] = useState(false);
+  
+  const yearlyTableRef = useRef<HTMLDivElement>(null);
+  const [isYearlyTableScrollable, setIsYearlyTableScrollable] = useState(false);
+  const tournamentTableRef = useRef<HTMLDivElement>(null);
+  const [isTournamentTableScrollable, setIsTournamentTableScrollable] = useState(false);
+
 
   useEffect(() => {
     const handleResize = () => setIsDesktop(window.innerWidth >= 992);
@@ -95,6 +119,47 @@ const TablePage: React.FC = () => {
       };
     });
   }, [matches]);
+
+  const tournamentData = useMemo(() => {
+    const statsByTournament: Record<string, Omit<TournamentStats, 'name' | 'winRate' | 'gpm' | 'apm' | 'contributions' | 'cpm' | 'efectividad'>> = {};
+
+    matches.forEach(match => {
+        if (match.tournament) {
+            const tournamentName = match.tournament;
+            if (!statsByTournament[tournamentName]) {
+                statsByTournament[tournamentName] = { matchesPlayed: 0, wins: 0, draws: 0, losses: 0, points: 0, goals: 0, assists: 0 };
+            }
+            const tourStats = statsByTournament[tournamentName];
+            tourStats.matchesPlayed++;
+            if (match.result === 'VICTORIA') {
+                tourStats.wins++;
+                tourStats.points += 3;
+            } else if (match.result === 'EMPATE') {
+                tourStats.draws++;
+                tourStats.points += 1;
+            } else {
+                tourStats.losses++;
+            }
+            tourStats.goals += match.myGoals;
+            tourStats.assists += match.myAssists;
+        }
+    });
+
+    return Object.entries(statsByTournament).map(([name, stats]) => {
+        const { matchesPlayed, wins, goals, assists, points } = stats;
+        const efectividad = matchesPlayed > 0 ? (points / (matchesPlayed * 3)) * 100 : 0;
+        return {
+            ...stats,
+            name,
+            winRate: matchesPlayed > 0 ? (wins / matchesPlayed) * 100 : 0,
+            gpm: matchesPlayed > 0 ? goals / matchesPlayed : 0,
+            apm: matchesPlayed > 0 ? assists / matchesPlayed : 0,
+            contributions: goals + assists,
+            cpm: matchesPlayed > 0 ? (goals + assists) / matchesPlayed : 0,
+            efectividad,
+        };
+    });
+  }, [matches]);
   
   const maxValues = useMemo(() => {
     if (yearlyData.length === 0) return {};
@@ -111,6 +176,19 @@ const TablePage: React.FC = () => {
 
     return maxes;
   }, [yearlyData]);
+
+  const tournamentMaxValues = useMemo(() => {
+    if (tournamentData.length === 0) return {};
+    const maxes: Partial<Record<keyof TournamentStats, number>> = {};
+    const keysToCompare: (keyof TournamentStats)[] = [
+        'matchesPlayed', 'wins', 'draws', 'losses', 'points', 'winRate',
+        'efectividad', 'goals', 'assists', 'gpm', 'apm', 'contributions', 'cpm'
+    ];
+    keysToCompare.forEach(key => {
+        maxes[key] = Math.max(...tournamentData.map(d => d[key]));
+    });
+    return maxes;
+  }, [tournamentData]);
   
   useEffect(() => {
     if (yearlyData.length > 0) {
@@ -129,6 +207,44 @@ const TablePage: React.FC = () => {
     });
   }, [yearlyData, sortConfig]);
 
+  const sortedTournamentData = useMemo(() => {
+    return [...tournamentData].sort((a, b) => {
+        const key = tournamentSortConfig.key;
+        const direction = tournamentSortConfig.direction;
+        if (key === 'name') {
+            return direction === 'asc' ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name);
+        }
+        const aVal = a[key];
+        const bVal = b[key];
+        if (aVal < bVal) return direction === 'asc' ? -1 : 1;
+        if (aVal > bVal) return direction === 'asc' ? 1 : -1;
+        return 0;
+    });
+  }, [tournamentData, tournamentSortConfig]);
+
+  useEffect(() => {
+    const checkScrollable = (ref: React.RefObject<HTMLDivElement>, setScrollable: React.Dispatch<React.SetStateAction<boolean>>) => {
+        const el = ref.current;
+        if (el) {
+            setScrollable(el.scrollWidth > el.clientWidth + 1);
+        }
+    };
+
+    const handleResize = () => {
+        checkScrollable(yearlyTableRef, setIsYearlyTableScrollable);
+        checkScrollable(tournamentTableRef, setIsTournamentTableScrollable);
+    };
+
+    const timer = setTimeout(() => handleResize(), 100);
+
+    window.addEventListener('resize', handleResize);
+    
+    return () => {
+        clearTimeout(timer);
+        window.removeEventListener('resize', handleResize);
+    };
+  }, [sortedYearlyData, sortedTournamentData]);
+
   const requestSort = (key: keyof YearlyStats) => {
     let direction: 'asc' | 'desc' = 'desc';
     if (sortConfig.key === key && sortConfig.direction === 'desc') {
@@ -137,9 +253,22 @@ const TablePage: React.FC = () => {
     setSortConfig({ key, direction });
   };
 
+  const requestTournamentSort = (key: keyof TournamentStats) => {
+    let direction: 'asc' | 'desc' = 'desc';
+    if (tournamentSortConfig.key === key && tournamentSortConfig.direction === 'desc') {
+        direction = 'asc';
+    }
+    setTournamentSortConfig({ key, direction });
+  };
+
   const getSortIndicator = (key: keyof YearlyStats) => {
     if (sortConfig.key !== key) return null;
     return sortConfig.direction === 'desc' ? ' ↓' : ' ↑';
+  };
+
+  const getTournamentSortIndicator = (key: keyof TournamentStats) => {
+    if (tournamentSortConfig.key !== key) return null;
+    return tournamentSortConfig.direction === 'desc' ? ' ↓' : ' ↑';
   };
   
   const historicalMaxValuesForRadar = useMemo(() => {
@@ -184,7 +313,7 @@ const TablePage: React.FC = () => {
     });
   };
 
-  const headers: { key: keyof YearlyStats; label: string; isNumeric: boolean }[] = [
+  const yearlyHeaders: { key: keyof YearlyStats; label: string; isNumeric: boolean }[] = [
     { key: 'year', label: 'Año', isNumeric: true },
     { key: 'points', label: 'Pts', isNumeric: true },
     { key: 'matchesPlayed', label: 'PJ', isNumeric: true },
@@ -199,6 +328,21 @@ const TablePage: React.FC = () => {
     { key: 'apm', label: 'A/P', isNumeric: true },
     { key: 'contributions', label: 'G+A', isNumeric: true },
     { key: 'cpm', label: 'G+A/P', isNumeric: true },
+  ];
+  
+  const tournamentHeaders: { key: keyof TournamentStats; label: string; isNumeric: boolean }[] = [
+    { key: 'name', label: 'Torneo', isNumeric: false },
+    { key: 'points', label: 'Pts', isNumeric: true },
+    { key: 'matchesPlayed', label: 'PJ', isNumeric: true },
+    { key: 'wins', label: 'V', isNumeric: true },
+    { key: 'draws', label: 'E', isNumeric: true },
+    { key: 'losses', label: 'D', isNumeric: true },
+    { key: 'winRate', label: '% V', isNumeric: true },
+    { key: 'efectividad', label: 'Efect.', isNumeric: true },
+    { key: 'goals', label: 'G', isNumeric: true },
+    { key: 'assists', label: 'A', isNumeric: true },
+    { key: 'gpm', label: 'G/P', isNumeric: true },
+    { key: 'apm', label: 'A/P', isNumeric: true },
   ];
   
   const styles: { [key: string]: React.CSSProperties } = {
@@ -218,12 +362,22 @@ const TablePage: React.FC = () => {
         gap: theme.spacing.large,
         alignItems: 'start',
     },
+    rightColumn: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: theme.spacing.large,
+        minWidth: 0,
+        width: '100%',
+    },
     chartColumn: {
         position: isDesktop ? 'sticky' : 'static',
         top: `calc(65px + ${theme.spacing.extraLarge})`, // 65px header + page padding
     },
-    tableWrapper: { width: '100%', overflowX: 'auto', backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large, border: `1px solid ${theme.colors.border}`, boxShadow: theme.shadows.medium, minWidth: 0 },
-    table: { width: '100%', borderCollapse: 'collapse' },
+    scrollWrapper: {
+        position: 'relative',
+    },
+    tableWrapper: { minWidth: 0, overflowX: 'auto', backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large, border: `1px solid ${theme.colors.border}`, boxShadow: theme.shadows.medium },
+    table: { borderCollapse: 'collapse' },
     th: { padding: `${theme.spacing.small} ${theme.spacing.medium}`, textAlign: 'left', fontSize: theme.typography.fontSize.small, color: theme.colors.secondaryText, fontWeight: 600, borderBottom: `2px solid ${theme.colors.borderStrong}`, cursor: 'pointer', whiteSpace: 'nowrap' },
     tr: { transition: 'background-color 0.2s' },
     td: { padding: `${theme.spacing.medium}`, fontSize: theme.typography.fontSize.small, color: theme.colors.primaryText, borderBottom: `1px solid ${theme.colors.border}`, whiteSpace: 'nowrap' },
@@ -253,6 +407,16 @@ const TablePage: React.FC = () => {
         transition: 'background-color 0.2s, color 0.2s',
         alignSelf: 'center',
     },
+    fadeOverlay: {
+        position: 'absolute',
+        top: 0,
+        right: 0,
+        height: '100%',
+        width: '60px',
+        background: `linear-gradient(to left, ${theme.colors.surface}, transparent)`,
+        pointerEvents: 'none',
+        borderRadius: theme.borderRadius.large,
+    },
   };
 
   if (matches.length === 0) {
@@ -272,10 +436,25 @@ const TablePage: React.FC = () => {
     <style>{`
         .table-row:hover { background-color: ${theme.colors.background}; }
         .table-row:hover .sticky-column { background-color: ${theme.colors.background}; }
-        .subtle-scrollbar::-webkit-scrollbar { height: 8px; }
-        .subtle-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .subtle-scrollbar::-webkit-scrollbar-thumb { background-color: ${theme.colors.border}; border-radius: 10px; }
-        .subtle-scrollbar { scrollbar-width: thin; scrollbar-color: ${theme.colors.border} transparent; }
+        .custom-scrollbar::-webkit-scrollbar {
+          height: 8px;
+          width: 8px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background-color: ${theme.colors.borderStrong};
+          border-radius: 10px;
+          border: 2px solid ${theme.colors.surface};
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background-color: ${theme.colors.secondaryText};
+        }
+        .custom-scrollbar {
+          scrollbar-width: thin;
+          scrollbar-color: ${theme.colors.borderStrong} ${theme.colors.surface};
+        }
     `}</style>
     <main style={styles.container}>
       <div style={styles.header}>
@@ -320,48 +499,101 @@ const TablePage: React.FC = () => {
               </Card>
             )}
         </div>
-        <div style={styles.tableWrapper} className="subtle-scrollbar">
-            <table style={styles.table}>
-            <thead>
-                <tr>
-                {headers.map((header, index) => (
-                    <th key={header.key} style={{...styles.th, ...(header.isNumeric && styles.numeric), ...(index === 0 && styles.stickyColumn) }} className={index === 0 ? 'sticky-column' : ''} onClick={() => requestSort(header.key)}>
-                    {header.label}
-                    {getSortIndicator(header.key)}
-                    </th>
-                ))}
-                </tr>
-            </thead>
-            <tbody>
-                {sortedYearlyData.map(stats => {
-                    const isMax = (key: keyof YearlyStats) => maxValues[key] !== undefined && stats[key] === maxValues[key] && (maxValues[key] as number) > 0;
-                    
-                    const maxStyle: React.CSSProperties = {
-                        fontWeight: 700,
-                        color: theme.colors.win,
-                    };
+        <div style={styles.rightColumn}>
+            <div style={styles.scrollWrapper}>
+              <div ref={yearlyTableRef} style={styles.tableWrapper} className="custom-scrollbar">
+                  <table style={styles.table}>
+                  <thead>
+                      <tr>
+                      {yearlyHeaders.map((header, index) => (
+                          <th key={header.key} style={{...styles.th, ...(header.isNumeric && styles.numeric), ...(index === 0 && styles.stickyColumn) }} className={index === 0 ? 'sticky-column' : ''} onClick={() => requestSort(header.key)}>
+                          {header.label}
+                          {getSortIndicator(header.key)}
+                          </th>
+                      ))}
+                      </tr>
+                  </thead>
+                  <tbody>
+                      {sortedYearlyData.map(stats => {
+                          const isMax = (key: keyof YearlyStats) => maxValues[key] !== undefined && stats[key] === maxValues[key] && (maxValues[key] as number) > 0;
+                          
+                          const maxStyle: React.CSSProperties = {
+                              fontWeight: 700,
+                              color: theme.colors.win,
+                          };
 
-                    return (
-                    <tr key={stats.year} style={styles.tr} className="table-row">
-                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...styles.stickyColumn}} className="sticky-column">{stats.year}</td>
-                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('points') && { color: theme.colors.win })}}>{stats.points}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('matchesPlayed') && maxStyle)}}>{stats.matchesPlayed}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('wins') && maxStyle)}}>{stats.wins}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('draws') && maxStyle)}}>{stats.draws}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('losses') && maxStyle)}}>{stats.losses}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('winRate') && maxStyle)}}>{stats.winRate.toFixed(1)}%</td>
-                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('efectividad') && { color: theme.colors.win })}}>{stats.efectividad.toFixed(1)}%</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('goals') && maxStyle)}}>{stats.goals}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('assists') && maxStyle)}}>{stats.assists}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('gpm') && maxStyle)}}>{stats.gpm.toFixed(2)}</td>
-                        <td style={{...styles.td, ...styles.numeric, ...(isMax('apm') && maxStyle)}}>{stats.apm.toFixed(2)}</td>
-                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('contributions') && { color: theme.colors.win })}}>{stats.contributions}</td>
-                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('cpm') && { color: theme.colors.win })}}>{stats.cpm.toFixed(2)}</td>
-                    </tr>
-                    );
-                })}
-            </tbody>
-            </table>
+                          return (
+                          <tr key={stats.year} style={styles.tr} className="table-row">
+                              <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...styles.stickyColumn}} className="sticky-column">{stats.year}</td>
+                              <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('points') && { color: theme.colors.win })}}>{stats.points}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('matchesPlayed') && maxStyle)}}>{stats.matchesPlayed}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('wins') && maxStyle)}}>{stats.wins}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('draws') && maxStyle)}}>{stats.draws}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('losses') && maxStyle)}}>{stats.losses}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('winRate') && maxStyle)}}>{stats.winRate.toFixed(1)}%</td>
+                              <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('efectividad') && { color: theme.colors.win })}}>{stats.efectividad.toFixed(1)}%</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('goals') && maxStyle)}}>{stats.goals}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('assists') && maxStyle)}}>{stats.assists}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('gpm') && maxStyle)}}>{stats.gpm.toFixed(2)}</td>
+                              <td style={{...styles.td, ...styles.numeric, ...(isMax('apm') && maxStyle)}}>{stats.apm.toFixed(2)}</td>
+                              <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('contributions') && { color: theme.colors.win })}}>{stats.contributions}</td>
+                              <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('cpm') && { color: theme.colors.win })}}>{stats.cpm.toFixed(2)}</td>
+                          </tr>
+                          );
+                      })}
+                  </tbody>
+                  </table>
+              </div>
+              {isYearlyTableScrollable && <div style={styles.fadeOverlay} />}
+            </div>
+            
+            <h3 style={{...styles.pageTitle, fontSize: theme.typography.fontSize.large, marginTop: 0 }}>Rendimiento por Torneo</h3>
+            {tournamentData.length > 0 ? (
+                <div style={styles.scrollWrapper}>
+                    <div ref={tournamentTableRef} style={styles.tableWrapper} className="custom-scrollbar">
+                        <table style={styles.table}>
+                            <thead>
+                                <tr>
+                                    {tournamentHeaders.map((header, index) => (
+                                        <th key={header.key} style={{...styles.th, ...(header.isNumeric && styles.numeric), ...(index === 0 && styles.stickyColumn) }} className={index === 0 ? 'sticky-column' : ''} onClick={() => requestTournamentSort(header.key as keyof TournamentStats)}>
+                                            {header.label}
+                                            {getTournamentSortIndicator(header.key as keyof TournamentStats)}
+                                        </th>
+                                    ))}
+                                </tr>
+                            </thead>
+                            <tbody>
+                                {sortedTournamentData.map(stats => {
+                                    const isMax = (key: keyof TournamentStats) => tournamentMaxValues[key] !== undefined && stats[key] === tournamentMaxValues[key] && (tournamentMaxValues[key] as number) > 0;
+                                    const maxStyle: React.CSSProperties = { fontWeight: 700, color: theme.colors.win };
+
+                                    return (
+                                    <tr key={stats.name} style={styles.tr} className="table-row">
+                                        <td style={{...styles.td, fontWeight: 700, ...styles.stickyColumn}} className="sticky-column">{stats.name}</td>
+                                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('points') && { color: theme.colors.win })}}>{stats.points}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('matchesPlayed') && maxStyle)}}>{stats.matchesPlayed}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('wins') && maxStyle)}}>{stats.wins}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('draws') && maxStyle)}}>{stats.draws}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('losses') && maxStyle)}}>{stats.losses}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('winRate') && maxStyle)}}>{stats.winRate.toFixed(1)}%</td>
+                                        <td style={{...styles.td, ...styles.numeric, fontWeight: 700, ...(isMax('efectividad') && { color: theme.colors.win })}}>{stats.efectividad.toFixed(1)}%</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('goals') && maxStyle)}}>{stats.goals}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('assists') && maxStyle)}}>{stats.assists}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('gpm') && maxStyle)}}>{stats.gpm.toFixed(2)}</td>
+                                        <td style={{...styles.td, ...styles.numeric, ...(isMax('apm') && maxStyle)}}>{stats.apm.toFixed(2)}</td>
+                                    </tr>
+                                    );
+                                })}
+                            </tbody>
+                        </table>
+                    </div>
+                    {isTournamentTableScrollable && <div style={styles.fadeOverlay} />}
+                </div>
+            ) : (
+                <div style={styles.noDataContainer}>
+                    <p>No has asignado ningún torneo a tus partidos. Puedes hacerlo desde la tarjeta de cada partido en la página de "Registro".</p>
+                </div>
+            )}
         </div>
       </div>
     </main>

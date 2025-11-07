@@ -1,5 +1,5 @@
 import React, { useState, useMemo, useEffect, useCallback } from 'react';
-import type { Goal, GoalMetric, AIAchievementSuggestion, CustomAchievement, Match, GoalType, AchievementCondition } from '../types';
+import type { Goal, GoalMetric, AIAchievementSuggestion, CustomAchievement, Match, GoalType, AchievementCondition, AchievementTier, Achievement } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useData } from '../contexts/DataContext';
 import Card from '../components/common/Card';
@@ -7,11 +7,12 @@ import { achievementsList } from '../data/achievements';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { TrophyIcon } from '../components/icons/TrophyIcon';
 import { TargetIcon } from '../components/icons/TargetIcon';
-import { calculateHistoricalRecords, parseLocalDate } from '../utils/analytics';
+import { calculateHistoricalRecords, parseLocalDate, evaluateCustomAchievement } from '../utils/analytics';
 import { generateAchievementSuggestions, generateCreativeGoalTitle } from '../services/geminiService';
 import { SparklesIcon } from '../components/icons/SparklesIcon';
 import { Loader } from '../components/Loader';
 import SegmentedControl from '../components/common/SegmentedControl';
+import { ChevronIcon } from '../components/icons/ChevronIcon';
 
 const metricLabels: Record<GoalMetric, string> = {
   myGoals: 'Goles',
@@ -172,6 +173,12 @@ const ProgressPage: React.FC = () => {
   const historicalRecords = useMemo(() => calculateHistoricalRecords(matches), [matches]);
   const [seenAchievements, setSeenAchievements] = useLocalStorage<Record<string, boolean>>('seenAchievements', {});
   const [newlyUnlocked, setNewlyUnlocked] = useState<string[]>([]);
+  
+  // History State
+  const [isGoalHistoryExpanded, setIsGoalHistoryExpanded] = useState(false);
+  const [expandedGoalYears, setExpandedGoalYears] = useState<Record<string, boolean>>({});
+  const [isAchievementHistoryExpanded, setIsAchievementHistoryExpanded] = useState(false);
+  const [expandedAchievementYears, setExpandedAchievementYears] = useState<Record<string, boolean>>({});
   
   const availableGoalTypes = metricToGoalTypes[goalMetric] || ['accumulate'];
 
@@ -444,21 +451,22 @@ const ProgressPage: React.FC = () => {
       setCustomAchValue('');
     };
 
-  const getProgressForGoal = (goal: Goal) => {
-    const relevantMatches = goal.startDate && goal.endDate
-        ? matches.filter(m => {
+  const getProgressForGoal = useCallback((goal: Goal, relevantMatches: Match[] = matches) => {
+    if (goal.startDate && goal.endDate) {
+        relevantMatches = relevantMatches.filter(m => {
             const matchDate = parseLocalDate(m.date);
             const startDate = parseLocalDate(goal.startDate!);
             const endDate = parseLocalDate(goal.endDate!);
             return matchDate >= startDate && matchDate <= endDate;
-        })
-        : matches;
+        });
+    }
 
     const records = calculateHistoricalRecords(relevantMatches);
     const totalMatches = relevantMatches.length;
 
+    if (totalMatches === 0 && goal.goalType !== 'peak') return 0;
+
     if (goal.goalType === 'peak') {
-        if (relevantMatches.length === 0) return 0;
         const peakRecords = calculateHistoricalRecords(relevantMatches);
         if (goal.metric === 'myGoals') return peakRecords.bestGoalPerformance.value;
         if (goal.metric === 'myAssists') return peakRecords.bestAssistPerformance.value;
@@ -476,7 +484,7 @@ const ProgressPage: React.FC = () => {
         case 'longestUndefeatedStreak': return records.longestUndefeatedStreak.value;
         default: return 0;
     }
-  };
+  }, [matches]);
   
   const debouncedGenerateTitle = useCallback(
     debounce(async (metric: GoalMetric, type: GoalType, target: number, period: string) => {
@@ -512,19 +520,83 @@ const ProgressPage: React.FC = () => {
     }
   }, [goalTarget, goalMetric, goalType, periodTextForAI, isTitleManuallyEdited, debouncedGenerateTitle]);
 
-  const { historicalGoals, seasonalGoals } = useMemo(() => {
+  const { historicalGoals, seasonalGoals, completedGoalsByYear } = useMemo(() => {
     const historical: Goal[] = [];
     const seasonal: Goal[] = [];
+    // FIX: Renamed internal variable to avoid reference error.
+    const completedByYear: Record<string, Goal[]> = {};
+    const sortedMatches = [...matches].sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
+
     goals.forEach(g => {
-        if (g.startDate && g.endDate) {
-            seasonal.push(g);
+        const progress = getProgressForGoal(g);
+        if (progress >= g.target) {
+            let completionYear: string | null = null;
+            if (g.endDate) {
+                completionYear = parseLocalDate(g.endDate).getFullYear().toString();
+            } else {
+                for (let i = 0; i < sortedMatches.length; i++) {
+                    if (getProgressForGoal(g, sortedMatches.slice(0, i + 1)) >= g.target) {
+                        completionYear = parseLocalDate(sortedMatches[i].date).getFullYear().toString();
+                        break;
+                    }
+                }
+            }
+            if (completionYear) {
+                if (!completedByYear[completionYear]) completedByYear[completionYear] = [];
+                completedByYear[completionYear].push(g);
+            }
         } else {
-            historical.push(g);
+            if (g.startDate && g.endDate) {
+                seasonal.push(g);
+            } else {
+                historical.push(g);
+            }
         }
     });
-    seasonal.sort((a,b) => parseLocalDate(b.startDate!).getTime() - parseLocalDate(a.startDate!).getTime());
-    return { historicalGoals: historical, seasonalGoals: seasonal };
-  }, [goals]);
+    seasonal.sort((a, b) => parseLocalDate(b.startDate!).getTime() - parseLocalDate(a.startDate!).getTime());
+    // FIX: Explicitly mapped the internal variable to the output property.
+    return { historicalGoals: historical, seasonalGoals: seasonal, completedGoalsByYear: completedByYear };
+  }, [goals, matches, getProgressForGoal]);
+  
+  const unlockedAchievementsByYear = useMemo(() => {
+    const grouped: Record<string, { title: string; icon: React.ReactNode; tierName: string }[]> = {};
+    const sortedMatches = [...matches].sort((a, b) => parseLocalDate(a.date).getTime() - parseLocalDate(b.date).getTime());
+    
+    const checkAndGroup = (ach: Achievement | CustomAchievement, tier: AchievementTier, unlockYear: string) => {
+        const key = `${ach.id}-${tier.name}`;
+        if (!grouped[unlockYear]) grouped[unlockYear] = [];
+        if (!grouped[unlockYear].some(item => item.title === ach.title && item.tierName === tier.name)) {
+            grouped[unlockYear].push({ title: ach.title, icon: tier.icon, tierName: tier.name });
+        }
+    };
+
+    achievementsList.forEach(ach => {
+        ach.tiers.forEach(tier => {
+            for (let i = 0; i < sortedMatches.length; i++) {
+                const slice = sortedMatches.slice(0, i + 1);
+                const records = calculateHistoricalRecords(slice);
+                if (ach.progress(slice, records) >= tier.target) {
+                    const year = parseLocalDate(sortedMatches[i].date).getFullYear().toString();
+                    checkAndGroup(ach, tier, year);
+                    break; 
+                }
+            }
+        });
+    });
+    
+    customAchievements.forEach(ach => {
+        for (let i = 0; i < sortedMatches.length; i++) {
+            if (evaluateCustomAchievement(ach, sortedMatches.slice(0, i + 1))) {
+                const year = parseLocalDate(sortedMatches[i].date).getFullYear().toString();
+                checkAndGroup(ach, { name: 'Desbloqueado', target: 1, icon: ach.icon }, year);
+                break;
+            }
+        }
+    });
+
+    return grouped;
+}, [matches, customAchievements]);
+
   
   const futureYearsForGoal = useMemo(() => {
     const current = new Date().getFullYear();
@@ -558,6 +630,13 @@ const ProgressPage: React.FC = () => {
     if (!monthYear) return '';
     const [year, month] = monthYear.split('-');
     return new Date(Number(year), Number(month) - 1).toLocaleString('es-ES', { month: 'long', year: 'numeric' });
+  };
+  
+  const toggleGoalYear = (year: string) => {
+    setExpandedGoalYears(prev => ({...prev, [year]: !prev[year]}));
+  };
+  const toggleAchievementYear = (year: string) => {
+    setExpandedAchievementYears(prev => ({...prev, [year]: !prev[year]}));
   };
 
   const styles: { [key: string]: React.CSSProperties } = {
@@ -642,6 +721,22 @@ const ProgressPage: React.FC = () => {
       color: isAddChallengeHovered ? theme.colors.textOnAccent : theme.colors.accent2,
       border: `1px solid ${theme.colors.accent2}`
     },
+    historySection: { marginTop: theme.spacing.extraLarge },
+    accordionHeader: {
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        width: '100%', background: theme.colors.background, border: `1px solid ${theme.colors.border}`,
+        borderRadius: theme.borderRadius.medium, padding: theme.spacing.medium,
+        color: theme.colors.primaryText, cursor: 'pointer'
+    },
+    accordionContent: {
+        padding: theme.spacing.medium, border: `1px solid ${theme.colors.border}`, borderTop: 'none',
+        borderBottomLeftRadius: theme.borderRadius.medium, borderBottomRightRadius: theme.borderRadius.medium
+    },
+    historyItem: {
+        display: 'flex', alignItems: 'center', gap: theme.spacing.medium,
+        fontSize: theme.typography.fontSize.small, padding: `${theme.spacing.small} 0`,
+        borderBottom: `1px solid ${theme.colors.border}`
+    }
   };
   
   const tabOptions = [
@@ -837,6 +932,36 @@ const ProgressPage: React.FC = () => {
                 {goals.length === 0 && (
                   <p style={{color: theme.colors.secondaryText, textAlign: 'center'}}>Aún no has creado ninguna meta.</p>
                 )}
+                {Object.keys(completedGoalsByYear).length > 0 && (
+                    <section style={styles.historySection}>
+                         <button style={styles.accordionHeader} onClick={() => setIsGoalHistoryExpanded(!isGoalHistoryExpanded)}>
+                            <h3 style={{...styles.sectionTitle, margin: 0, border: 'none', padding: 0}}>Historial de Metas Completadas</h3>
+                            <ChevronIcon isExpanded={isGoalHistoryExpanded} />
+                        </button>
+                        {isGoalHistoryExpanded && (
+                             <div style={styles.accordionContent}>
+                                {Object.keys(completedGoalsByYear).sort((a,b) => Number(b) - Number(a)).map(year => (
+                                    <div key={year}>
+                                        <button style={{...styles.accordionHeader, backgroundColor: 'transparent'}} onClick={() => toggleGoalYear(year)}>
+                                            <h4 style={{...styles.sectionTitle, margin: 0, border: 'none', padding: 0, fontSize: '1rem' }}>Metas de {year}</h4>
+                                            <ChevronIcon isExpanded={!!expandedGoalYears[year]} />
+                                        </button>
+                                        {expandedGoalYears[year] && (
+                                            <div style={{padding: `0 ${theme.spacing.medium}`}}>
+                                                {completedGoalsByYear[year].map(goal => (
+                                                    <div key={goal.id} style={{...styles.historyItem, borderBottom: `1px solid ${theme.colors.border}`}}>
+                                                        <span style={{fontSize: '1.2rem'}}>{metricIcons[goal.metric]}</span>
+                                                        <span>{goal.title}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </section>
+                )}
               </div>
             </>
           )}
@@ -939,6 +1064,36 @@ const ProgressPage: React.FC = () => {
                         </section>
                         </div>
                     </Card>
+                     {Object.keys(unlockedAchievementsByYear).length > 0 && (
+                        <section style={styles.historySection}>
+                            <button style={styles.accordionHeader} onClick={() => setIsAchievementHistoryExpanded(!isAchievementHistoryExpanded)}>
+                                <h3 style={{...styles.sectionTitle, margin: 0, border: 'none', padding: 0}}>Historial de Logros</h3>
+                                <ChevronIcon isExpanded={isAchievementHistoryExpanded} />
+                            </button>
+                            {isAchievementHistoryExpanded && (
+                                <div style={styles.accordionContent}>
+                                    {Object.keys(unlockedAchievementsByYear).sort((a,b) => Number(b) - Number(a)).map(year => (
+                                        <div key={year}>
+                                            <button style={{...styles.accordionHeader, backgroundColor: 'transparent'}} onClick={() => toggleAchievementYear(year)}>
+                                                <h4 style={{...styles.sectionTitle, margin: 0, border: 'none', padding: 0, fontSize: '1rem' }}>Logros de {year}</h4>
+                                                <ChevronIcon isExpanded={!!expandedAchievementYears[year]} />
+                                            </button>
+                                            {expandedAchievementYears[year] && (
+                                                <div style={{padding: `0 ${theme.spacing.medium}`}}>
+                                                    {unlockedAchievementsByYear[year].map(item => (
+                                                        <div key={`${item.title}-${item.tierName}`} style={{...styles.historyItem, borderBottom: `1px solid ${theme.colors.border}`}}>
+                                                            <span style={{fontSize: '1.2rem'}}>{item.icon}</span>
+                                                            <span>{item.title} ({item.tierName})</span>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+                    )}
                 </section>
               </div>
             </>

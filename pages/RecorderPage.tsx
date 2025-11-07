@@ -11,7 +11,7 @@ import { parseLocalDate } from '../utils/analytics';
 const RecorderPage: React.FC = () => {
   const { theme } = useTheme();
   // FIX: Destructured `playerProfile` and new league properties.
-  const { matches, addMatch, updateMatch, deleteMatch, updateMatchPlayers, addAIInteraction, isShareMode, playerProfile } = useData();
+  const { matches, addMatch, updateMatch, deleteMatch, updateMatchPlayers, addAIInteraction, isShareMode, playerProfile, availableTournaments } = useData();
   
   const [error, setError] = useState<string | null>(null);
   const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 992);
@@ -19,6 +19,7 @@ const RecorderPage: React.FC = () => {
   const [lastAddedMatch, setLastAddedMatch] = useState<Match | null>(null);
 
   const [resultFilter, setResultFilter] = useState<'ALL' | 'VICTORIA' | 'DERROTA' | 'EMPATE'>('ALL');
+  const [tournamentFilter, setTournamentFilter] = useState<string>('ALL');
   const [sortBy, setSortBy] = useState<MatchSortByType>('date_desc');
 
   const allPlayers = useMemo(() => {
@@ -50,6 +51,9 @@ const RecorderPage: React.FC = () => {
     if (resultFilter !== 'ALL') {
       processedMatches = processedMatches.filter(m => m.result === resultFilter);
     }
+    if (tournamentFilter !== 'ALL') {
+        processedMatches = processedMatches.filter(m => m.tournament === tournamentFilter);
+    }
     processedMatches.sort((a, b) => {
       switch (sortBy) {
         case 'goals_desc': return b.myGoals - a.myGoals;
@@ -61,7 +65,7 @@ const RecorderPage: React.FC = () => {
       }
     });
     return processedMatches;
-  }, [matches, resultFilter, sortBy]);
+  }, [matches, resultFilter, sortBy, tournamentFilter]);
 
   const handleAddMatch = (newMatchData: Omit<Match, 'id'>) => {
     const newMatch = addMatch(newMatchData);
@@ -133,6 +137,9 @@ const RecorderPage: React.FC = () => {
               sortBy={sortBy}
               setSortBy={setSortBy}
               isDesktop={isDesktop}
+              availableTournaments={availableTournaments}
+              tournamentFilter={tournamentFilter}
+              setTournamentFilter={setTournamentFilter}
             />
           </div>
           <MatchList 
@@ -199,6 +206,9 @@ const RecorderPage: React.FC = () => {
               sortBy={sortBy}
               setSortBy={setSortBy}
               isDesktop={isDesktop}
+              availableTournaments={availableTournaments}
+              tournamentFilter={tournamentFilter}
+              setTournamentFilter={setTournamentFilter}
             />
           </div>
           <MatchList 

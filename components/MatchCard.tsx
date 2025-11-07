@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import type { Match, MatchSortByType, PlayerPerformance } from '../types';
 import { useTheme } from '../contexts/ThemeContext';
 import { useData } from '../contexts/DataContext';
@@ -8,7 +8,7 @@ import { TeamIcon } from './icons/TeamIcon';
 import AutocompleteInput from './AutocompleteInput';
 import MatchFormIndicator from './MatchFormIndicator';
 import { ShareIcon } from './icons/ShareIcon';
-import { parseLocalDate } from '../utils/analytics';
+import { parseLocalDate, getColorForString } from '../utils/analytics';
 
 interface MatchCardProps {
   match: Match;
@@ -29,13 +29,34 @@ const resultAbbreviations: Record<'VICTORIA' | 'DERROTA' | 'EMPATE', string> = {
 
 const MatchCard: React.FC<MatchCardProps> = ({ match, allMatches, allPlayers, onDelete, onEdit, onUpdateMatchPlayers, isReadOnly = false, sortBy }) => {
   const { theme } = useTheme();
-  const { playerProfile } = useData();
-  const { result, myGoals, myAssists, date, notes } = match;
+  const { playerProfile, updateMatch, availableTournaments } = useData();
+  const { result, myGoals, myAssists, date, notes, tournament } = match;
   const [isExpanded, setIsExpanded] = useState(false);
   const [isEditingPlayers, setIsEditingPlayers] = useState(false);
   const [myTeamPlayers, setMyTeamPlayers] = useState<PlayerPerformance[]>([]);
   const [opponentPlayers, setOpponentPlayers] = useState<PlayerPerformance[]>([]);
   const [shareStatus, setShareStatus] = useState<'idle' | 'copying' | 'copied' | 'error'>('idle');
+  const [tournamentInput, setTournamentInput] = useState(match.tournament || '');
+  const [isEditingTournament, setIsEditingTournament] = useState(false);
+
+  useEffect(() => {
+    if (!isEditingTournament) {
+        setTournamentInput(match.tournament || '');
+    }
+  }, [match.tournament, isEditingTournament]);
+
+  const handleSaveTournament = () => {
+    if (updateMatch) {
+        const trimmedTournament = tournamentInput.trim();
+        updateMatch({ ...match, tournament: trimmedTournament ? trimmedTournament : undefined });
+        setIsEditingTournament(false);
+    }
+  };
+
+  const handleCancelTournamentEdit = () => {
+      setTournamentInput(match.tournament || '');
+      setIsEditingTournament(false);
+  };
 
   const formattedDate = useMemo(() => {
     const dateObj = parseLocalDate(date);
@@ -199,6 +220,13 @@ Acumulado
     }
   };
   
+  // FIX: Extracted actionButton style to be defined before `styles` to avoid reference error.
+  const actionButtonStyle: React.CSSProperties = {
+    background: 'transparent', fontSize: theme.typography.fontSize.extraSmall, fontWeight: 600, cursor: 'pointer',
+    padding: `${theme.spacing.extraSmall} ${theme.spacing.small}`, borderRadius: theme.borderRadius.small,
+    transition: 'color 0.2s, background-color 0.2s, border-color 0.2s', display: 'flex', alignItems: 'center', gap: theme.spacing.small,
+  };
+
   const styles: { [key: string]: React.CSSProperties } = {
     card: {
       backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large,
@@ -262,11 +290,7 @@ Acumulado
       gap: theme.spacing.medium, marginTop: theme.spacing.large,
       flexWrap: 'wrap',
     },
-    actionButton: {
-      background: 'transparent', fontSize: theme.typography.fontSize.extraSmall, fontWeight: 600, cursor: 'pointer',
-      padding: `${theme.spacing.extraSmall} ${theme.spacing.small}`, borderRadius: theme.borderRadius.small,
-      transition: 'color 0.2s, background-color 0.2s, border-color 0.2s', display: 'flex', alignItems: 'center', gap: theme.spacing.small,
-    },
+    actionButton: actionButtonStyle,
     notesSection: { marginBottom: theme.spacing.large },
     sectionHeading: {
       fontSize: theme.typography.fontSize.extraSmall, fontWeight: 700, color: theme.colors.draw, textTransform: 'uppercase',
@@ -373,6 +397,65 @@ Acumulado
         marginBottom: theme.spacing.small,
         fontWeight: 'bold'
     },
+    tournamentSection: {
+      borderTop: `1px solid ${theme.colors.border}`,
+      paddingTop: theme.spacing.large,
+      marginTop: theme.spacing.large,
+    },
+    tournamentDisplay: {
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        backgroundColor: theme.colors.background,
+        padding: theme.spacing.medium,
+        borderRadius: theme.borderRadius.medium,
+    },
+    tournamentName: {
+        fontWeight: 600,
+        color: theme.colors.primaryText,
+    },
+    editTournamentButton: {
+        background: 'none',
+        border: `1px solid ${theme.colors.borderStrong}`,
+        color: theme.colors.secondaryText,
+        padding: `${theme.spacing.extraSmall} ${theme.spacing.small}`,
+        borderRadius: theme.borderRadius.small,
+        cursor: 'pointer',
+        fontSize: theme.typography.fontSize.extraSmall,
+        fontWeight: 600,
+    },
+    tournamentEdit: {
+        display: 'flex',
+        flexDirection: 'column',
+        gap: theme.spacing.medium,
+    },
+    tournamentEditActions: {
+        display: 'flex',
+        justifyContent: 'flex-end',
+        gap: theme.spacing.medium,
+    },
+    tournamentSaveButton: {
+        ...actionButtonStyle,
+        border: `1px solid ${theme.colors.win}`,
+        color: theme.colors.win
+    },
+    tournamentCancelButton: {
+        ...actionButtonStyle,
+        border: `1px solid ${theme.colors.draw}`,
+        color: theme.colors.secondaryText
+    },
+    tournamentTag: {
+        backgroundColor: 'transparent',
+        border: '1px solid', // color is set inline
+        padding: `${theme.spacing.extraSmall} ${theme.spacing.small}`,
+        borderRadius: theme.borderRadius.small,
+        fontSize: theme.typography.fontSize.extraSmall,
+        fontWeight: 600,
+        whiteSpace: 'nowrap',
+        textOverflow: 'ellipsis',
+        overflow: 'hidden',
+        maxWidth: '120px',
+    },
   };
   
   const resultStyle = getResultStyle(result);
@@ -437,6 +520,7 @@ Acumulado
       </div>
       <div style={styles.toggleRow} onClick={() => setIsExpanded(!isExpanded)} role="button" tabIndex={0} aria-expanded={isExpanded}>
         <div style={{ display: 'flex', alignItems: 'center', gap: theme.spacing.medium, minWidth: 0 }}>
+            {tournament && <span style={{...styles.tournamentTag, borderColor: getColorForString(tournament), color: getColorForString(tournament) }} title={tournament}>{tournament}</span>}
             {matchForm.length > 0 && <MatchFormIndicator form={matchForm} />}
         </div>
         <ChevronIcon isExpanded={isExpanded} />
@@ -461,6 +545,35 @@ Acumulado
                       <ShareIcon />
                       <span>{getShareButtonText()}</span>
                   </button>
+              </div>
+            )}
+
+            {!isReadOnly && (
+              <div style={styles.tournamentSection}>
+                  <h4 style={styles.sectionHeading}>Torneo</h4>
+                  {!isEditingTournament ? (
+                      <div style={styles.tournamentDisplay}>
+                          <span style={{...styles.tournamentName, fontStyle: match.tournament ? 'normal' : 'italic', color: match.tournament ? theme.colors.primaryText : theme.colors.secondaryText}}>
+                              {match.tournament || 'Sin asignar'}
+                          </span>
+                          <button onClick={() => setIsEditingTournament(true)} style={styles.editTournamentButton}>
+                              {match.tournament ? 'Editar' : 'Asignar'}
+                          </button>
+                      </div>
+                  ) : (
+                      <div style={styles.tournamentEdit}>
+                          <AutocompleteInput
+                              value={tournamentInput}
+                              onChange={setTournamentInput}
+                              suggestions={availableTournaments}
+                              placeholder="Nombre del torneo"
+                          />
+                          <div style={styles.tournamentEditActions}>
+                              <button onClick={handleCancelTournamentEdit} style={styles.tournamentCancelButton}>Cancelar</button>
+                              <button onClick={handleSaveTournament} style={styles.tournamentSaveButton}>Guardar</button>
+                          </div>
+                      </div>
+                  )}
               </div>
             )}
             

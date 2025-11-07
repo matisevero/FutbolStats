@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useEffect, useMemo } from 'react';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import pako from 'pako';
 import type { Match, Goal, CustomAchievement, AIAchievementSuggestion, AIInteraction, PlayerPerformance, PlayerProfileData, WorldCupProgress, WorldCupStage, WorldCupCampaignHistory } from '../types';
@@ -38,6 +38,7 @@ interface DataContextType {
   worldCupProgress: WorldCupProgress | null;
   worldCupHistory: WorldCupCampaignHistory[];
   clearChampionCampaign: () => void;
+  availableTournaments: string[];
 }
 
 const DataContext = createContext<DataContextType | undefined>(undefined);
@@ -57,6 +58,16 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   
   const [currentPage, setCurrentPage] = useState<Page>('recorder');
   
+  const availableTournaments = useMemo(() => {
+    const tournaments = new Set<string>();
+    matches.forEach(match => {
+        if (match.tournament) {
+            tournaments.add(match.tournament);
+        }
+    });
+    return Array.from(tournaments).sort();
+  }, [matches]);
+
   useEffect(() => {
     if (isShareMode) {
         const dataParam = urlParams.get('data');
@@ -259,44 +270,59 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     if (lines.length < 2) throw new Error("El archivo CSV está vacío o solo contiene encabezados.");
 
     const header = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
-    const headerMapping: Record<string, number> = {};
-    const requiredHeaders = ["Fecha", "Resultado", "Mis Goles", "Mis Asistencias", "Mi Equipo", "Equipo Rival"];
+    const headerMapping: { [key: string]: number } = {};
 
-    requiredHeaders.forEach(reqHeader => {
-      const index = header.findIndex(h => h.toLowerCase() === reqHeader.toLowerCase());
-      if (index === -1) {
-        throw new Error(`Falta la columna requerida en el CSV: "${reqHeader}"`);
-      }
-      headerMapping[reqHeader] = index;
+    header.forEach((h, i) => {
+      headerMapping[h.toLowerCase()] = i;
     });
 
+    const requiredHeaders = ["fecha", "resultado", "mis goles", "mis asistencias"];
+    for (const reqHeader of requiredHeaders) {
+      if (headerMapping[reqHeader] === undefined) {
+        throw new Error(`Falta la columna requerida en el CSV: "${reqHeader}"`);
+      }
+    }
+
     const newMatches: Omit<Match, 'id'>[] = lines.slice(1).map(line => {
+      // This is a naive split, but it should work for this app's exports.
       const values = line.split(',');
 
-      const result = values[headerMapping["Resultado"]].trim().toUpperCase();
+      const result = values[headerMapping["resultado"]].trim().toUpperCase();
       if (result !== 'VICTORIA' && result !== 'DERROTA' && result !== 'EMPATE') {
         throw new Error(`Resultado inválido encontrado: ${result}`);
       }
+      
+      const getPlayers = (headerKey: string): PlayerPerformance[] => {
+        const index = headerMapping[headerKey];
+        if (index === undefined) return [];
+        return (values[index] || "").split(';').map(name => name.trim()).filter(name => name).map(name => ({ name, goals: 0, assists: 0 }));
+      };
+      
+      const getString = (headerKey: string): string | undefined => {
+          const index = headerMapping[headerKey];
+          if (index === undefined) return undefined;
+          const value = values[index]?.trim();
+          return value ? value : undefined;
+      };
 
-      const myTeamPlayers: PlayerPerformance[] = (values[headerMapping["Mi Equipo"]] || "")
-        .split(';')
-        .map(name => name.trim())
-        .filter(name => name)
-        .map(name => ({ name, goals: 0, assists: 0 }));
+      const getNumber = (headerKey: string): number | undefined => {
+          const index = headerMapping[headerKey];
+          if (index === undefined) return undefined;
+          const value = parseInt(values[index]?.trim(), 10);
+          return isNaN(value) ? undefined : value;
+      };
 
-      const opponentPlayers: PlayerPerformance[] = (values[headerMapping["Equipo Rival"]] || "")
-        .split(';')
-        .map(name => name.trim())
-        .filter(name => name)
-        .map(name => ({ name, goals: 0, assists: 0 }));
 
       return {
-        date: values[headerMapping["Fecha"]].trim(),
+        date: values[headerMapping["fecha"]].trim(),
         result: result as 'VICTORIA' | 'DERROTA' | 'EMPATE',
-        myGoals: parseInt(values[headerMapping["Mis Goles"]].trim(), 10) || 0,
-        myAssists: parseInt(values[headerMapping["Mis Asistencias"]].trim(), 10) || 0,
-        myTeamPlayers,
-        opponentPlayers,
+        myGoals: parseInt(values[headerMapping["mis goles"]].trim(), 10) || 0,
+        myAssists: parseInt(values[headerMapping["mis asistencias"]].trim(), 10) || 0,
+        goalDifference: getNumber("dif. gol"),
+        tournament: getString("torneo"),
+        notes: getString("notas"),
+        myTeamPlayers: getPlayers("mi equipo"),
+        opponentPlayers: getPlayers("equipo rival"),
       };
     });
 
@@ -376,6 +402,7 @@ export const DataProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     worldCupProgress,
     worldCupHistory,
     clearChampionCampaign,
+    availableTournaments,
   };
 
   return (

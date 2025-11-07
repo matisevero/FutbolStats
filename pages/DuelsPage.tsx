@@ -566,12 +566,13 @@ const DuelsPage: React.FC = () => {
         gap: theme.spacing.small,
         transition: 'background-color 0.2s, color 0.2s',
         alignSelf: 'center',
+        whiteSpace: 'nowrap',
     },
     tabContainer: { display: 'flex', marginBottom: theme.spacing.medium },
     scrollWrapper: { position: 'relative' },
     tableContainer: { overflowX: 'auto', scrollbarWidth: 'none', msOverflowStyle: 'none' },
     fadeOverlay: { position: 'absolute', top: 0, right: 0, width: '60px', height: '100%', background: `linear-gradient(to left, ${theme.colors.surface}, transparent)`, pointerEvents: 'none' },
-    table: { width: '100%', borderCollapse: 'collapse' },
+    table: { borderCollapse: 'collapse' },
     th: { padding: `${theme.spacing.small} ${theme.spacing.medium}`, textAlign: 'left', fontSize: theme.typography.fontSize.small, color: theme.colors.secondaryText, fontWeight: 600, borderBottom: `2px solid ${theme.colors.borderStrong}`, cursor: 'pointer', whiteSpace: 'nowrap' },
     tr: { transition: 'background-color 0.2s' },
     td: { padding: `${theme.spacing.medium}`, fontSize: theme.typography.fontSize.small, color: theme.colors.primaryText, borderBottom: `1px solid ${theme.colors.border}`, whiteSpace: 'nowrap' },
@@ -742,7 +743,7 @@ const DuelsPage: React.FC = () => {
                         onMouseLeave={() => setIsShareHovered(false)}
                     >
                         <ShareIcon />
-                        <span>Compartir Vista</span>
+                        Compartir Vista
                     </button>
                 )}
             </div>

@@ -44,15 +44,15 @@ const Header: React.FC = () => {
   }, [isMenuOpen, isDesktop]);
 
   const navLinks: { page: Page; label: string; icon: React.ReactNode }[] = [
-    { page: 'recorder', label: 'Registro', icon: <ClipboardIcon /> },
-    { page: 'stats', label: 'Estadísticas', icon: <BarChartIcon /> },
-    { page: 'table', label: 'Tabla', icon: <TableIcon /> },
-    { page: 'duels', label: 'Duelos', icon: <UsersIcon /> },
-    { page: 'worldcup', label: 'Modo Mundial', icon: <img src="https://www.dropbox.com/scl/fi/txx8gvxq8a0n836rn1gyd/worldcup.png?rlkey=smih2pzoqxirfmj5fio0xl3yv&st=og5k70oi&raw=1" alt="Copa del Mundo" style={{ width: 26, height: 26, objectFit: 'contain' }} /> },
-    { page: 'progress', label: 'Progreso', icon: <TrendingUpIcon /> },
-    { page: 'social', label: 'Social', icon: <ImageIcon /> },
-    { page: 'coach', label: 'Entrenador IA', icon: <ChatBubbleIcon /> },
-    { page: 'settings', label: 'Configuración', icon: <SettingsIcon /> },
+    { page: 'recorder', label: 'Registro', icon: <ClipboardIcon size={18} /> },
+    { page: 'stats', label: 'Estadísticas', icon: <BarChartIcon size={18} /> },
+    { page: 'table', label: 'Tabla', icon: <TableIcon size={18} /> },
+    { page: 'duels', label: 'Duelos', icon: <UsersIcon size={18} /> },
+    { page: 'worldcup', label: 'Modo Mundial', icon: <img src="https://www.dropbox.com/scl/fi/txx8gvxq8a0n836rn1gyd/worldcup.png?rlkey=smih2pzoqxirfmj5fio0xl3yv&st=og5k70oi&raw=1" alt="Copa del Mundo" style={{ width: 20, height: 20, objectFit: 'contain' }} /> },
+    { page: 'progress', label: 'Progreso', icon: <TrendingUpIcon size={18} /> },
+    { page: 'social', label: 'Social', icon: <ImageIcon size={18} /> },
+    { page: 'coach', label: 'Entrenador IA', icon: <ChatBubbleIcon size={18} /> },
+    { page: 'settings', label: 'Configuración', icon: <SettingsIcon size={18} /> },
   ];
 
   const filteredNavLinks = isShareMode ? navLinks.filter(link => link.page !== 'settings' && link.page !== 'recorder') : navLinks;
@@ -143,13 +143,13 @@ const Header: React.FC = () => {
     desktopNav: {
       display: 'flex',
       alignItems: 'center',
-      gap: '0.75rem',
+      gap: '0.5rem',
     },
     navButton: {
-      padding: '0.6rem 1.2rem',
+      padding: '0.45rem 0.9rem',
       cursor: 'pointer',
       fontWeight: 600,
-      fontSize: '0.9rem',
+      fontSize: '0.8rem',
       transition: 'background-color 0.2s, color 0.2s, border-color 0.2s',
       display: 'flex',
       alignItems: 'center',
@@ -157,11 +157,11 @@ const Header: React.FC = () => {
     },
     iconButton: { background: 'none', border: 'none', color: theme.colors.secondaryText, cursor: 'pointer', padding: theme.spacing.small, display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '50%' },
     menuBackdrop: { position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0, 0, 0, 0.5)', zIndex: 1998 },
-    sidePanelMenu: { position: 'fixed', top: 0, right: 0, width: 'clamp(250px, 75vw, 320px)', height: '100%', background: theme.colors.surface, zIndex: 1999, display: 'flex', flexDirection: 'column', boxShadow: theme.shadows.large },
+    sidePanelMenu: { position: 'fixed', top: 0, right: 0, width: 'clamp(250px, 80vw, 320px)', height: '100%', background: theme.colors.surface, zIndex: 1999, display: 'flex', flexDirection: 'column', boxShadow: theme.shadows.large },
     menuHeader: { display: 'flex', justifyContent: 'flex-end', alignItems: 'center', padding: '0.5rem 1rem', borderBottom: `1px solid ${theme.colors.border}`, height: '65px' },
     mobileNav: { display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: '0.5rem', padding: '1rem', flex: 1 },
     mobileNavButton: {
-        cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem', padding: '1rem',
+        cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem', padding: '1rem 1.2rem',
         borderRadius: theme.borderRadius.medium, transition: 'color 0.2s, background-color 0.2s, border-color 0.2s',
         display: 'flex', alignItems: 'center', justifyContent: 'flex-start',
         gap: '1rem',
@@ -207,7 +207,7 @@ const Header: React.FC = () => {
                         onMouseEnter={() => setHoveredButton(page)}
                         onMouseLeave={() => setHoveredButton(null)}
                     >
-                        <span style={{ display: 'flex', alignItems: 'center', marginRight: '0.5rem' }}>{icon}</span>
+                        <span style={{ display: 'flex', alignItems: 'center', marginRight: '0.35rem' }}>{icon}</span>
                         <span>{label}</span>
                     </button>
                   )

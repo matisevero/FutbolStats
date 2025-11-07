@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo, useState, useEffect } from 'react';
 import { useTheme } from '../contexts/ThemeContext';
 import { useData } from '../contexts/DataContext';
 import GroupStageProgress from './worldcup/GroupStageProgress';
@@ -11,7 +11,23 @@ import { ChevronIcon } from '../components/icons/ChevronIcon';
 const WorldCupPage: React.FC = () => {
   const { theme } = useTheme();
   const { worldCupProgress, matches, clearChampionCampaign, worldCupHistory } = useData();
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 992);
   const [isHistoryExpanded, setIsHistoryExpanded] = useState(false);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 992);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+  
+  const handleToggleHistory = () => {
+    if (!isDesktop) {
+        setIsHistoryExpanded(prev => !prev);
+    }
+  };
+  
+  const showHistory = isDesktop || isHistoryExpanded;
+
 
   const stageOrder: (WorldCupStage | 'eliminated_group')[] = ['eliminated_group', 'group', 'round_of_16', 'quarter_finals', 'semi_finals', 'final'];
 
@@ -32,8 +48,17 @@ const WorldCupPage: React.FC = () => {
 
 
   const styles: { [key: string]: React.CSSProperties } = {
-    container: { maxWidth: '800px', margin: '0 auto', padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, display: 'flex', flexDirection: 'column', gap: theme.spacing.large },
-    pageTitle: { fontSize: theme.typography.fontSize.extraLarge, fontWeight: 700, color: theme.colors.primaryText, margin: 0, borderLeft: `4px solid ${theme.colors.accent1}`, paddingLeft: theme.spacing.medium },
+    container: { maxWidth: '1200px', margin: '0 auto', padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, display: 'flex', flexDirection: 'column', gap: theme.spacing.large },
+    pageTitle: { fontSize: theme.typography.fontSize.extraLarge, fontWeight: 700, color: theme.colors.primaryText, margin: `0 0 ${theme.spacing.medium} 0`, borderLeft: `4px solid ${theme.colors.accent1}`, paddingLeft: theme.spacing.medium },
+    contentWrapper: {
+        display: 'grid',
+        gridTemplateColumns: '1fr',
+        gap: theme.spacing.extraLarge,
+        alignItems: 'start',
+        ...(isDesktop && {
+            gridTemplateColumns: '1fr 1fr',
+        }),
+    },
     noDataContainer: { textAlign: 'center', padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, color: theme.colors.secondaryText, backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large, border: `1px solid ${theme.colors.border}` },
     bracketContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: theme.spacing.small },
     connector: { width: '2px', height: theme.spacing.medium, backgroundColor: theme.colors.borderStrong },
@@ -41,14 +66,14 @@ const WorldCupPage: React.FC = () => {
         backgroundColor: theme.colors.surface,
         borderRadius: theme.borderRadius.large,
         border: `1px solid ${theme.colors.border}`,
-        marginTop: theme.spacing.extraLarge,
+        marginTop: isDesktop ? 0 : theme.spacing.extraLarge,
     },
     historyHeader: {
         display: 'flex',
         justifyContent: 'space-between',
         alignItems: 'center',
         padding: theme.spacing.medium,
-        cursor: 'pointer',
+        cursor: isDesktop ? 'default' : 'pointer',
         background: 'none',
         border: 'none',
         width: '100%',
@@ -156,56 +181,58 @@ const WorldCupPage: React.FC = () => {
       `}</style>
       <main style={styles.container}>
         <h2 style={styles.pageTitle}>Campaña Mundial #{progress.campaignNumber}</h2>
-        <div style={styles.bracketContainer}>
-          {stages.map((stage, index) => (
-            <React.Fragment key={stage.id}>
-              {stage.id === 'group' ? (
-                <GroupStageProgress
-                  progress={progress.groupStage}
-                  status={getStatus(stage.id)}
-                />
-              ) : (
-                <StageItem
-                  label={stage.label}
-                  status={getStatus(stage.id)}
-                />
-              )}
-              {index < stages.length - 1 && <div style={styles.connector}></div>}
-            </React.Fragment>
-          ))}
-           <div style={{ marginTop: theme.spacing.large }}>
-              <img src="https://www.dropbox.com/scl/fi/txx8gvxq8a0n836rn1gyd/worldcup.png?rlkey=smih2pzoqxirfmj5fio0xl3yv&st=og5k70oi&raw=1" alt="Trofeo de la Copa del Mundo" style={{ width: '104px', height: 'auto' }} />
-          </div>
-        </div>
-        
-        <div style={styles.historyContainer}>
-            <button style={styles.historyHeader} onClick={() => setIsHistoryExpanded(!isHistoryExpanded)}>
-                <h3 style={styles.historyTitle}>Historial de Campañas</h3>
-                <ChevronIcon isExpanded={isHistoryExpanded} />
-            </button>
-            {isHistoryExpanded && (
-                <div style={styles.historyContent}>
-                    {worldCupHistory.length > 0 ? (
-                        [...worldCupHistory].sort((a,b) => b.campaignNumber - a.campaignNumber).map(campaign => {
-                            const isBest = campaign.finalStage === bestStageReached;
-                            return (
-                                <div key={campaign.campaignNumber} style={{...styles.historyItem, border: isBest ? `1px solid ${theme.colors.accent1}` : `1px solid ${theme.colors.borderStrong}`}}>
-                                    <div style={styles.historyItemHeader}>
-                                        <span style={styles.campaignNumber}>Mundial #{campaign.campaignNumber}</span>
-                                        {isBest && <StarIcon />}
+        <div style={styles.contentWrapper}>
+            <div style={styles.bracketContainer}>
+              {stages.map((stage, index) => (
+                <React.Fragment key={stage.id}>
+                  {stage.id === 'group' ? (
+                    <GroupStageProgress
+                      progress={progress.groupStage}
+                      status={getStatus(stage.id)}
+                    />
+                  ) : (
+                    <StageItem
+                      label={stage.label}
+                      status={getStatus(stage.id)}
+                    />
+                  )}
+                  {index < stages.length - 1 && <div style={styles.connector}></div>}
+                </React.Fragment>
+              ))}
+               <div style={{ marginTop: theme.spacing.large }}>
+                  <img src="https://www.dropbox.com/scl/fi/txx8gvxq8a0n836rn1gyd/worldcup.png?rlkey=smih2pzoqxirfmj5fio0xl3yv&st=og5k70oi&raw=1" alt="Trofeo de la Copa del Mundo" style={{ width: '104px', height: 'auto' }} />
+              </div>
+            </div>
+            
+            <div style={styles.historyContainer}>
+                <button style={styles.historyHeader} onClick={handleToggleHistory}>
+                    <h3 style={styles.historyTitle}>Historial de Campañas</h3>
+                    {!isDesktop && <ChevronIcon isExpanded={showHistory} />}
+                </button>
+                {showHistory && (
+                    <div style={styles.historyContent}>
+                        {worldCupHistory.length > 0 ? (
+                            [...worldCupHistory].sort((a,b) => b.campaignNumber - a.campaignNumber).map(campaign => {
+                                const isBest = campaign.finalStage === bestStageReached;
+                                return (
+                                    <div key={campaign.campaignNumber} style={{...styles.historyItem, border: isBest ? `1px solid ${theme.colors.accent1}` : `1px solid ${theme.colors.borderStrong}`}}>
+                                        <div style={styles.historyItemHeader}>
+                                            <span style={styles.campaignNumber}>Mundial #{campaign.campaignNumber}</span>
+                                            {isBest && <StarIcon />}
+                                        </div>
+                                        <div style={styles.historyItemBody}>
+                                            <p style={styles.historyText}><strong>Etapa alcanzada:</strong> {stageLabels[campaign.finalStage]}</p>
+                                            <p style={styles.historyText}><strong>Período:</strong> {campaign.startDate} al {campaign.endDate}</p>
+                                        </div>
                                     </div>
-                                    <div style={styles.historyItemBody}>
-                                        <p style={styles.historyText}><strong>Etapa alcanzada:</strong> {stageLabels[campaign.finalStage]}</p>
-                                        <p style={styles.historyText}><strong>Período:</strong> {campaign.startDate} al {campaign.endDate}</p>
-                                    </div>
-                                </div>
-                            )
-                        })
-                    ) : (
-                        <p style={styles.noHistoryText}>No hay campañas completadas en el historial.</p>
-                    )}
-                </div>
-            )}
+                                )
+                            })
+                        ) : (
+                            <p style={styles.noHistoryText}>No hay campañas completadas en el historial.</p>
+                        )}
+                    </div>
+                )}
+            </div>
         </div>
       </main>
     </>

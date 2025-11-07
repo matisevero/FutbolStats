@@ -21,6 +21,13 @@ const CoachPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [isHovered, setIsHovered] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(window.innerWidth >= 992);
+
+  useEffect(() => {
+    const handleResize = () => setIsDesktop(window.innerWidth >= 992);
+    window.addEventListener('resize', handleResize);
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
 
   useEffect(() => {
     if (matches.length > 0) {
@@ -55,8 +62,9 @@ const CoachPage: React.FC = () => {
     setIsLoading(true);
 
     try {
-      const response = await chat.sendMessage({ message: input });
-      const modelMessage: Message = { role: 'model', text: response.text };
+      // FIX: Standardized variable name to `geminiResponse` for consistency and to avoid potential conflicts.
+      const geminiResponse = await chat.sendMessage({ message: input });
+      const modelMessage: Message = { role: 'model', text: geminiResponse.text };
       setMessages(prev => [...prev, modelMessage]);
     } catch (error) {
       console.error('Error sending message:', error);
@@ -68,13 +76,25 @@ const CoachPage: React.FC = () => {
   };
 
   const styles: { [key: string]: React.CSSProperties } = {
-    container: { maxWidth: '1000px', margin: '0 auto', padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, display: 'flex', flexDirection: 'column', gap: theme.spacing.extraLarge },
+    container: { 
+      maxWidth: '1200px', 
+      margin: '0 auto', 
+      padding: `${theme.spacing.extraLarge} ${theme.spacing.medium}`, 
+      display: isDesktop ? 'grid' : 'flex',
+      gridTemplateColumns: 'repeat(2, 1fr)',
+      gap: theme.spacing.extraLarge,
+      alignItems: 'start',
+      flexDirection: 'column',
+    },
     pageTitle: {
       fontSize: theme.typography.fontSize.extraLarge, fontWeight: 700, color: theme.colors.primaryText,
       margin: 0, borderLeft: `4px solid ${theme.colors.accent2}`, paddingLeft: theme.spacing.medium,
+      gridColumn: isDesktop ? '1 / -1' : 'auto',
+      marginBottom: isDesktop ? 0 : theme.spacing.extraLarge,
     },
     chatWindow: {
-      height: '60vh',
+      height: '70vh',
+      minHeight: '500px',
       backgroundColor: theme.colors.surface, borderRadius: theme.borderRadius.large,
       boxShadow: theme.shadows.large, border: `1px solid ${theme.colors.border}`,
       display: 'flex', flexDirection: 'column', overflow: 'hidden',
@@ -107,6 +127,12 @@ const CoachPage: React.FC = () => {
         gap: theme.spacing.medium,
     },
      errorText: { color: theme.colors.loss, textAlign: 'center', padding: '1rem', backgroundColor: `${theme.colors.loss}20`, borderRadius: theme.borderRadius.medium},
+     sectionTitle: {
+      fontSize: theme.typography.fontSize.large,
+      fontWeight: 700,
+      color: theme.colors.primaryText,
+      marginBottom: theme.spacing.large,
+     },
   };
 
   return (
@@ -145,7 +171,7 @@ const CoachPage: React.FC = () => {
       </div>
       
       <div>
-        <h3 style={{ ...styles.pageTitle, fontSize: '1.5rem' }}>Historial de interacciones con IA</h3>
+        <h3 style={styles.sectionTitle}>Historial de interacciones con IA</h3>
         {aiInteractions.length > 0 ? (
             <div style={styles.historyContainer}>
                 {aiInteractions.map(interaction => (

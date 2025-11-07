@@ -14,6 +14,17 @@ export const parseLocalDate = (dateString: string): Date => {
   return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
 };
 
+export const getColorForString = (str: string): string => {
+  if (!str) return '#888888';
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    hash = hash & hash; // Convert to 32bit integer
+  }
+  const h = hash % 360;
+  return `hsl(${h}, 85%, 60%)`;
+};
+
 export const calculateStandardDeviation = (data: number[]): number => {
   if (data.length <= 1) {
     return 0;

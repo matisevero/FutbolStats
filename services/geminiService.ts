@@ -35,8 +35,8 @@ export const generateHighlightsSummary = async (matches: Match[]): Promise<Omit<
     `;
 
     try {
-        // FIX: Standardize API response variable name to resolve reference error.
-        const geminiResponse = await aiInstance.models.generateContent({
+        // FIX: Changed variable name from `Response` to `response` to fix a reference error.
+        const response = await aiInstance.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -48,7 +48,7 @@ export const generateHighlightsSummary = async (matches: Match[]): Promise<Omit<
             }
         });
         
-        const text = geminiResponse.text.trim();
+        const text = response.text.trim();
         if (!text) {
             return [];
         }
@@ -74,8 +74,7 @@ export const generateCoachingInsight = async (matches: Match[]): Promise<Coachin
     `;
 
     try {
-        // FIX: Standardize API response variable name to resolve reference error.
-        const geminiResponse = await aiInstance.models.generateContent({
+        const response = await aiInstance.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
@@ -85,7 +84,7 @@ export const generateCoachingInsight = async (matches: Match[]): Promise<Coachin
                 }
             }
         });
-        const text = geminiResponse.text.trim();
+        const text = response.text.trim();
         if (!text) {
           throw new Error("Empty response from AI for coaching insight.");
         }
@@ -106,13 +105,12 @@ export const generateConsistencyAnalysis = async (contributions: number[]): Prom
   `;
 
   try {
-    // FIX: Standardize API response variable name to resolve reference error.
-    const geminiResponse = await aiInstance.models.generateContent({
+    const response = await aiInstance.models.generateContent({
         model: 'gemini-2.5-flash', 
         contents: prompt, 
         config: { temperature: 0.7 } 
     });
-    return geminiResponse.text.trim();
+    return response.text.trim();
   } catch (error) {
     console.error("Gemini API call for consistency analysis failed:", error);
     throw new Error("No se pudo obtener el análisis de consistencia.");
@@ -143,16 +141,15 @@ export const generateGoalSuggestions = async (matches: Match[], existingGoals: G
     `;
     
     try {
-        // FIX: Standardize API response variable name to resolve reference error.
-        const geminiResponse = await aiInstance.models.generateContent({
+        const response = await aiInstance.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: {
                 responseMimeType: "application/json",
-                responseSchema: { type: Type.OBJECT, properties: { suggestions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING }, metric: { type: Type.STRING }, goalType: { type: Type.STRING }, target: { type: Type.NUMBER }, year: { type: Type.STRING | Type.NUMBER } }, required: ["title", "description", "metric", "goalType", "target", "year"] } } } }
+                responseSchema: { type: Type.OBJECT, properties: { suggestions: { type: Type.ARRAY, items: { type: Type.OBJECT, properties: { title: { type: Type.STRING }, description: { type: Type.STRING }, metric: { type: Type.STRING }, goalType: { type: Type.STRING }, target: { type: Type.NUMBER }, year: { type: Type.STRING } }, required: ["title", "description", "metric", "goalType", "target", "year"] } } } }
             }
         });
-        const text = geminiResponse.text.trim();
+        const text = response.text.trim();
         if (!text) {
           return [];
         }
@@ -187,13 +184,12 @@ export const generateCreativeGoalTitle = async (metric: string, goalType: GoalTy
     `;
 
     try {
-        // FIX: Standardize API response variable name to resolve reference error.
-        const geminiResponse = await aiInstance.models.generateContent({
+        const response = await aiInstance.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
             config: { temperature: 0.9 }
         });
-        return geminiResponse.text.trim().replace(/["']/g, '') || `Meta: ${target} ${metric}`;
+        return response.text.trim().replace(/["']/g, '') || `Meta: ${target} ${metric}`;
     } catch (error) {
         console.error("Gemini API call for creative goal title failed:", error);
         return `Meta: ${target} ${metric}`; // Fallback title
@@ -223,8 +219,7 @@ export const generateAchievementSuggestions = async (matches: Match[], existingA
   `;
 
   try {
-    // FIX: Standardize API response variable name to resolve reference error.
-    const geminiResponse = await aiInstance.models.generateContent({
+    const response = await aiInstance.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: prompt,
         config: {
@@ -258,7 +253,7 @@ export const generateAchievementSuggestions = async (matches: Match[], existingA
             }
         }
     });
-    const text = geminiResponse.text.trim();
+    const text = response.text.trim();
     if (!text) {
       return [];
     }
@@ -287,8 +282,7 @@ export const generateMatchHeadline = async (match: Match): Promise<string> => {
   `;
 
   try {
-    // FIX: Standardize API response variable name to resolve reference error.
-    const geminiResponse = await aiInstance.models.generateContent({
+    const response = await aiInstance.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: prompt,
       config: {
@@ -296,7 +290,7 @@ export const generateMatchHeadline = async (match: Match): Promise<string> => {
       }
     });
     
-    return geminiResponse.text.trim().replace(/["']/g, '');
+    return response.text.trim().replace(/["']/g, '');
 
   } catch (error) {
     console.error("Gemini API call for headline failed:", error);

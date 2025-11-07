@@ -40,6 +40,7 @@ export interface Match {
   notes?: string;
   myTeamPlayers?: PlayerPerformance[];
   opponentPlayers?: PlayerPerformance[];
+  tournament?: string;
 }
 
 export interface AIInteraction {

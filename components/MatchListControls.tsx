@@ -9,6 +9,9 @@ interface MatchListControlsProps {
   sortBy: MatchSortByType;
   setSortBy: (sort: MatchSortByType) => void;
   isDesktop: boolean;
+  availableTournaments: string[];
+  tournamentFilter: string;
+  setTournamentFilter: (filter: string) => void;
 }
 
 const MatchListControls: React.FC<MatchListControlsProps> = ({
@@ -16,7 +19,10 @@ const MatchListControls: React.FC<MatchListControlsProps> = ({
   setResultFilter,
   sortBy,
   setSortBy,
-  isDesktop
+  isDesktop,
+  availableTournaments,
+  tournamentFilter,
+  setTournamentFilter,
 }) => {
   const { theme } = useTheme();
 
@@ -78,6 +84,13 @@ const MatchListControls: React.FC<MatchListControlsProps> = ({
           selectedValue={resultFilter}
           onSelect={(value) => setResultFilter(value as 'ALL' | 'VICTORIA' | 'DERROTA' | 'EMPATE')}
         />
+      </div>
+       <div style={styles.filterGroup}>
+        <span style={styles.label}>Torneo:</span>
+        <select value={tournamentFilter} onChange={e => setTournamentFilter(e.target.value)} style={styles.select}>
+            <option value="ALL">Todos</option>
+            {availableTournaments.map(t => <option key={t} value={t}>{t}</option>)}
+        </select>
       </div>
       <div style={styles.filterGroup}>
         <span style={styles.label}>Ordenar por:</span>
